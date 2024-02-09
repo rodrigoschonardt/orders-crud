@@ -1,0 +1,55 @@
+version: '3.5'
+
+services:
+  app-order:
+    ports:
+      - '8080:8080'
+    image : 'order-service'
+    build:
+      context: ./order-service/.
+    container_name: app-order
+    depends_on:
+      db-order:
+        condition: service_healthy
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db-order:5432/order-service
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=root
+      - RABBITMQ_HOST=rabbitmq
+  db-order:
+    image: 'postgres:16.1'
+    container_name: db-order
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=order-service
+    volumes:
+      - ./order-service/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  email-service:
+    image: 'email-service'
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    build: 
+      context: ./email-service/.
+    environment:
+      - EMAIL= # gmail address
+      - PASSWORD=  # gmail 16 digit app password
+      - RABBITMQ_HOST=rabbitmq
+  rabbitmq:
+    image: 'rabbitmq:3.13.0-rc.4-management-alpine'
+    container_name: 'rabbitmq'
+    ports:
+      - 15672:15672
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+
